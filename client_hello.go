@@ -2,6 +2,7 @@ package tlslib
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"golang.org/x/crypto/cryptobyte"
 )
@@ -47,54 +48,56 @@ type ClientHelloInfo struct {
 	} `json:"info"`
 }
 
-func UnmarshalClientHello(handshakeBytes []byte) *ClientHelloInfo {
+func UnmarshalClientHello(handshakeBytes []byte) (*ClientHelloInfo, error) {
 	info := &ClientHelloInfo{Raw: handshakeBytes}
 	handshakeMessage := cryptobyte.String(handshakeBytes)
 
 	var messageType uint8
 	if !handshakeMessage.ReadUint8(&messageType) || messageType != typeClientHello {
-		return nil
+		return nil, fmt.Errorf(
+			"%w: want msgType(%d) got msgType(%d)",
+			ErrInvalidTLSMsgType, typeClientHello, messageType)
 	}
 
 	var clientHello cryptobyte.String
 	if !handshakeMessage.ReadUint24LengthPrefixed(&clientHello) || !handshakeMessage.Empty() {
-		return nil
+		return nil, ErrClientHelloReadFailed
 	}
 
 	if !clientHello.ReadUint16((*uint16)(&info.Version)) {
-		return nil
+		return nil, ErrVersionReadFailed
 	}
 
 	if !clientHello.ReadBytes(&info.Random, 32) {
-		return nil
+		return nil, ErrRandomReadFailed
 	}
 
 	if !clientHello.ReadUint8LengthPrefixed((*cryptobyte.String)(&info.SessionID)) {
-		return nil
+		return nil, ErrSessionIDReadFailed
 	}
 
 	var cipherSuites cryptobyte.String
 	if !clientHello.ReadUint16LengthPrefixed(&cipherSuites) {
-		return nil
+		return nil, ErrCipherSuitesReadFailed
 	}
 	info.CipherSuites = []CipherSuite{}
 	for !cipherSuites.Empty() {
 		var suite uint16
 		if !cipherSuites.ReadUint16(&suite) {
-			return nil
+			return nil, ErrCipherSuiteParseFailed
 		}
 		info.CipherSuites = append(info.CipherSuites, MakeCipherSuite(suite))
 	}
 
 	var compressionMethods cryptobyte.String
 	if !clientHello.ReadUint8LengthPrefixed(&compressionMethods) {
-		return nil
+		return nil, ErrCompressionMethodsReadFailed
 	}
 	info.CompressionMethods = []CompressionMethod{}
 	for !compressionMethods.Empty() {
 		var method uint8
 		if !compressionMethods.ReadUint8(&method) {
-			return nil
+			return nil, ErrCompressionMethodParseFailed
 		}
 		info.CompressionMethods = append(info.CompressionMethods, CompressionMethod(method))
 	}
@@ -102,17 +105,17 @@ func UnmarshalClientHello(handshakeBytes []byte) *ClientHelloInfo {
 	info.Extensions = []Extension{}
 
 	if clientHello.Empty() {
-		return info
+		return info, ErrIncompleteClientHello
 	}
 	var extensions cryptobyte.String
 	if !clientHello.ReadUint16LengthPrefixed(&extensions) {
-		return nil
+		return nil, ErrExtensionsReadFailed
 	}
 	for !extensions.Empty() {
 		var extType uint16
 		var extData cryptobyte.String
 		if !extensions.ReadUint16(&extType) || !extensions.ReadUint16LengthPrefixed(&extData) {
-			return nil
+			return nil, ErrExtensionParseFailed
 		}
 
 		parseData := extensionParsers[extType]
@@ -141,11 +144,11 @@ func UnmarshalClientHello(handshakeBytes []byte) *ClientHelloInfo {
 	}
 
 	if !clientHello.Empty() {
-		return nil
+		return nil, ErrInvalidClientHello
 	}
 
 	info.Info.JA3String = JA3String(info.Version, info.CipherSuites, info.Extensions)
 	info.Info.JA3Fingerprint = JA3Fingerprint(info.Info.JA3String)
 
-	return info
+	return info, nil
 }
