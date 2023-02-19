@@ -11,9 +11,11 @@ const typeServerHello uint8 = 2
 type ServerHelloInfo struct {
 	Raw []byte `json:"raw"`
 
-	Version   ProtocolVersion `json:"version"`
-	Random    []byte          `json:"random"`
-	SessionID []byte          `json:"session_id"`
+	Version           ProtocolVersion `json:"version"`
+	Random            []byte          `json:"random"`
+	SessionID         []byte          `json:"session_id"`
+	CipherSuite       uint16          `json:"cipher_suite"`
+	CompressionMethod uint8           `json:"compression_method"`
 }
 
 func UnmarshalServerHello(handshakeBytes []byte) (*ServerHelloInfo, error) {
@@ -42,6 +44,14 @@ func UnmarshalServerHello(handshakeBytes []byte) (*ServerHelloInfo, error) {
 
 	if !serverHello.ReadUint8LengthPrefixed((*cryptobyte.String)(&info.SessionID)) {
 		return nil, ErrSessionIDReadFailed
+	}
+
+	if !serverHello.ReadUint16(&info.CipherSuite) {
+		return nil, ErrCipherSuitesReadFailed
+	}
+
+	if !serverHello.ReadUint8(&info.CompressionMethod) {
+		return nil, ErrCompressionMethodsReadFailed
 	}
 
 	return info, nil

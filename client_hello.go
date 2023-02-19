@@ -37,15 +37,6 @@ type ClientHelloInfo struct {
 	SessionID          []byte              `json:"session_id"`
 	CipherSuites       []CipherSuite       `json:"cipher_suites"`
 	CompressionMethods []CompressionMethod `json:"compression_methods"`
-	Extensions         []Extension         `json:"extensions"`
-
-	Info struct {
-		ServerName     *string  `json:"server_name"`
-		SCTs           bool     `json:"scts"`
-		Protocols      []string `json:"protocols"`
-		JA3String      string   `json:"ja3_string"`
-		JA3Fingerprint string   `json:"ja3_fingerprint"`
-	} `json:"info"`
 }
 
 func UnmarshalClientHello(handshakeBytes []byte) (*ClientHelloInfo, error) {
@@ -101,54 +92,6 @@ func UnmarshalClientHello(handshakeBytes []byte) (*ClientHelloInfo, error) {
 		}
 		info.CompressionMethods = append(info.CompressionMethods, CompressionMethod(method))
 	}
-
-	info.Extensions = []Extension{}
-
-	if clientHello.Empty() {
-		return info, ErrIncompleteClientHello
-	}
-	var extensions cryptobyte.String
-	if !clientHello.ReadUint16LengthPrefixed(&extensions) {
-		return nil, ErrExtensionsReadFailed
-	}
-	for !extensions.Empty() {
-		var extType uint16
-		var extData cryptobyte.String
-		if !extensions.ReadUint16(&extType) || !extensions.ReadUint16LengthPrefixed(&extData) {
-			return nil, ErrExtensionParseFailed
-		}
-
-		parseData := extensionParsers[extType]
-		if parseData == nil {
-			parseData = ParseUnknownExtensionData
-		}
-		data := parseData(extData)
-
-		info.Extensions = append(info.Extensions, Extension{
-			Type:    extType,
-			Name:    Extensions[extType].Name,
-			Grease:  Extensions[extType].Grease,
-			Private: Extensions[extType].Private,
-			Data:    data,
-		})
-
-		switch extType {
-		case 0:
-			info.Info.ServerName = &data.(*ServerNameData).HostName
-		case 16:
-			info.Info.Protocols = data.(*ALPNData).Protocols
-		case 18:
-			info.Info.SCTs = true
-		}
-
-	}
-
-	if !clientHello.Empty() {
-		return nil, ErrInvalidClientHello
-	}
-
-	info.Info.JA3String = JA3String(info.Version, info.CipherSuites, info.Extensions)
-	info.Info.JA3Fingerprint = JA3Fingerprint(info.Info.JA3String)
 
 	return info, nil
 }
