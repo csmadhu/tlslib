@@ -1,4 +1,4 @@
-module github.com/csmadhu/tlslib/v1
+module github.com/csmadhu/tlslib/v2
 
 go 1.19
 
