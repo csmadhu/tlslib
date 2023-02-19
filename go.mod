@@ -1,10 +1,10 @@
-module github.com/csmadhu/tlslib/v1
+module github.com/tlslib
 
 go 1.19
 
 require (
 	github.com/stretchr/testify v1.8.1
-	golang.org/x/crypto v0.0.0-20220518034528-6f7dac969898
+	golang.org/x/crypto v0.6.0
 )
 
 require (
