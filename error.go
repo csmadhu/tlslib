@@ -15,8 +15,6 @@ var (
 	ErrExtensionParseFailed         = errors.New("extension_parse_failed")
 
 	ErrServerHelloReadFailed = errors.New("server_hello_read_failed")
-	ErrInvalidServerHello    = errors.New("invalid_server_hello")
-	ErrIncompleteServerHello = errors.New("incomplete_server_hello")
 
 	ErrClientHelloReadFailed = errors.New("client_hello_read_failed")
 	ErrInvalidClientHello    = errors.New("invalid_client_hello")
